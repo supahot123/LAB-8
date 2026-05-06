@@ -317,11 +317,3 @@ int main()
 
     return 0;
 }
-
-/*
-Notes:
-
-Could use malloc for better optimization.
-Better intervention for absents/lates.
-
-*/
