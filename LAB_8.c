@@ -1,7 +1,7 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#define MAX 100
 #define ABSENT_TIME -1
 
 #define START_TIME 480 // 8:00 AM
@@ -15,9 +15,6 @@ typedef struct
     int lateCount;
     int absences;
 } Employee;
-
-Employee emp[MAX];
-int count = 0;
 
 // ATTENDANCE HISTORY
 typedef struct
@@ -35,8 +32,17 @@ typedef struct
     char status[10];
 } Attendance;
 
-Attendance log[MAX * 5];
+// DYNAMIC ARRAYS
+Employee *emp = NULL;
+Attendance *log = NULL;
+
+// COUNTER
+int count = 0;
 int logCount = 0;
+
+// CURRENT CAPACITY
+int empCapacity = 2;
+int logCapacity = 5;
 
 // TIME VALIDATION
 int isValidTime(int h, int m)
@@ -69,6 +75,32 @@ char *getStatus(int absences)
         return "GOOD";
 }
 
+void resizeEmployee()
+{
+    empCapacity *= 2; 
+
+    emp = realloc(emp, empCapacity * sizeof(Employee));
+
+    if(emp == NULL)
+    {
+        printf("Memory allocation failed!\n");
+        exit(1);
+    }
+}
+
+void resizeLogs()
+{
+    logCapacity *= 2; 
+
+    log = realloc(log, logCapacity * sizeof(Attendance));
+
+    if (log == NULL)
+    {
+        printf("Memory allocation failed!\n");
+        exit(1);
+    }
+}
+
 // ADD/UPDATE EMPLOYEE
 void addEmployee()
 {
@@ -80,12 +112,23 @@ void addEmployee()
 
     index = findEmployee(id);
 
+    if(count >= empCapacity)
+    {
+        resizeEmployee();
+    }
+
     printf("Enter Name: ");
     scanf(" %[^\n]", (index != -1) ? emp[index].name : emp[count].name);
 
     int isAbsent;
+
     printf("Is the employee absent today? (1 = Yes, 0 = No): ");
     scanf("%d", &isAbsent);
+
+    if(log >= logCapacity)
+    {
+        resizeLogs();
+    }
 
     // ABSENT CASE
     if (isAbsent == 1)
@@ -281,10 +324,19 @@ int main()
 {
     int choice;
 
+    emp = malloc(empCapacity * sizeof(Employee));
+    log = malloc(logCapacity * sizeof(Attendance));
+
+    if(emp == NULL || log == NULL)
+    {
+        printf("Memory allocation failed!\n");
+        return 1;
+    }
+
     do
     {
         printf("\n===============================\n");
-        printf("\n=    Employee Time Tracker    =\n");
+        printf("\n     Employee Time Tracker     \n");
         printf("\n===============================\n");
         printf("1. Add/Update Employee\n");
         printf("2. View Attendance History\n");
@@ -306,7 +358,7 @@ int main()
             break;
         case 4:
             printf("\n===============================\n");
-            printf("\n=       End Of Program        =\n");
+            printf("\n        End Of Program         \n");
             printf("\n===============================\n");
             break;
         default:
@@ -314,6 +366,9 @@ int main()
         }
 
     } while (choice != 4);
+
+    free(emp);
+    free(log);
 
     return 0;
 }
