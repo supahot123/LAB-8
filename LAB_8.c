@@ -78,7 +78,6 @@ void getCurrentDate(int *day,
                     int *year)
 {
     time_t t = time(NULL);
-
     struct tm tm = *localtime(&t);
 
     *day = tm.tm_mday;
@@ -127,38 +126,41 @@ void getDateChoice(int *day,
 {
     int choice;
 
-    printf("\n--- SELECT DATE ---\n");
-    printf("[1] Use Current Date\n");
-    printf("[2] Enter Date Manually\n");
-    printf("Choice: ");
-    scanf("%d", &choice);
-
-    if (choice == 1)
+    while (1)
     {
-        getCurrentDate(day, month, year);
+        printf("\n--- SELECT DATE ---\n");
+        printf("[1] Use Current Date\n");
+        printf("[2] Enter Date Manually\n");
+        printf("Choice: ");
+        scanf("%d", &choice);
 
-        printf("Date set to: %02d/%02d/%04d\n",
-               *month, *day, *year);
-    }
-    else if (choice == 2)
-    {
-        while (1)
+        if (choice == 1)
         {
-            printf("Enter Date (MM DD YYYY): ");
-            scanf("%d %d %d",
-                  month, day, year);
+            getCurrentDate(day, month, year);
 
-            if (isValidDate(*day, *month, *year))
-                break;
-
-            printf("Invalid date!\n");
+            printf("Date set to: %02d/%02d/%04d\n",
+                   *month, *day, *year);
+            break;
         }
-    }
-    else
-    {
-        printf("Invalid choice! Defaulting to current date.\n");
+        else if (choice == 2)
+        {
+            while (1)
+            {
+                printf("Enter Date (MM DD YYYY): ");
+                scanf("%d %d %d",
+                      month, day, year);
 
-        getCurrentDate(day, month, year);
+                if (isValidDate(*day, *month, *year))
+                    break;
+
+                printf("Invalid date!\n");
+            }
+            break;
+        }
+        else
+        {
+            printf("\nInvalid choice! Try Again.\n");
+        }
     }
 }
 
@@ -170,7 +172,6 @@ int findEmployee(char id[])
         if (strcmp(emp[i].empID, id) == 0)
             return i;
     }
-
     return -1;
 }
 
@@ -179,12 +180,26 @@ char *getStatus(int absences)
 {
     if (absences >= 8)
         return "CRITICAL";
-
     else if (absences >= 5)
         return "WARNING";
-
     else
         return "GOOD";
+}
+
+// FIND LOG BY DATE
+int findLogByDate(const char *empID, int day, int month, int year)
+{
+    for (int i = 0; i < logCount; i++)
+    {
+        if (strcmp(log[i].empID, empID) == 0 &&
+            log[i].day == day &&
+            log[i].month == month &&
+            log[i].year == year)
+        {
+            return i;
+        }
+    }
+    return -1;
 }
 
 // RESIZE EMPLOYEE ARRAY
@@ -193,8 +208,7 @@ void resizeEmployee()
     empCapacity *= 2;
 
     emp = realloc(emp,
-                  empCapacity *
-                      sizeof(Employee));
+                  empCapacity * sizeof(Employee));
 
     if (emp == NULL)
     {
@@ -209,8 +223,7 @@ void resizeLogs()
     logCapacity *= 2;
 
     log = realloc(log,
-                  logCapacity *
-                      sizeof(Attendance));
+                  logCapacity * sizeof(Attendance));
 
     if (log == NULL)
     {
@@ -234,7 +247,6 @@ void saveEmployees()
     {
         fprintf(fp,
                 "Employee ID: %s | Employee Name: %s | Late Count: %d | Absent Count: %d\n",
-
                 emp[i].empID,
                 emp[i].name,
                 emp[i].lateCount,
@@ -253,8 +265,7 @@ void loadEmployees()
         return;
 
     while (fscanf(fp,
-                  "%9[^|]|%49[^|]|%d|%d\n",
-
+                  "Employee ID: %9[^|] | Employee Name: %49[^|] | Late Count: %d | Absent Count: %d\n",
                   emp[count].empID,
                   emp[count].name,
                   &emp[count].lateCount,
@@ -282,8 +293,31 @@ void saveLogs()
 
     for (int i = 0; i < logCount; i++)
     {
+        int inH = log[i].timeIn / 60;
+        int inM = log[i].timeIn % 60;
+
+        int outH = log[i].timeOut / 60;
+        int outM = log[i].timeOut % 60;
+
+        int lateH = log[i].late / 60;
+        int lateM = log[i].late % 60;
+
+        int otH = log[i].overtime / 60;
+        int otM = log[i].overtime % 60;
+
+        int utH = log[i].undertime / 60;
+        int utM = log[i].undertime % 60;
+
+        int totalMinutes = log[i].timeOut - log[i].timeIn;
+        int totalH = totalMinutes / 60;
+        int totalM = totalMinutes % 60;
+
         fprintf(fp,
-                "%d/%d/%d | Employee ID: %s | Employee Name: %s | Time In: %d | Time Out: %d | Late: %d | Overtime: %d | Undertime: %d | Late Count: %d | Absent Count: %d | Status: %s\n",
+                "%02d/%02d/%04d | Employee ID: %s | Employee Name: %s | "
+                "Time In: %02d:%02d | Time Out: %02d:%02d | "
+                "Late: %02d:%02d | Overtime: %02d:%02d | Undertime: %02d:%02d | "
+                "Total Time: %02d:%02d | "
+                "Late Count: %d | Absent Count: %d | Status: %s\n",
 
                 log[i].month,
                 log[i].day,
@@ -292,16 +326,17 @@ void saveLogs()
                 log[i].empID,
                 log[i].name,
 
-                log[i].timeIn,
-                log[i].timeOut,
+                inH, inM,
+                outH, outM,
 
-                log[i].late,
-                log[i].overtime,
-                log[i].undertime,
+                lateH, lateM,
+                otH, otM,
+                utH, utM,
+
+                totalH, totalM,
 
                 log[i].lateCount,
                 log[i].absences,
-
                 log[i].status);
     }
 
@@ -316,8 +351,16 @@ void loadLogs()
     if (fp == NULL)
         return;
 
+    int inH, inM, outH, outM;
+    int lateH, lateM, otH, otM, utH, utM;
+    int totalH, totalM;
+
     while (fscanf(fp,
-                  "%d|%d|%d|%9[^|]|%49[^|]|%d|%d|%d|%d|%d|%d|%d|%9s\n",
+                  "%d/%d/%d | Employee ID: %9[^|] | Employee Name: %49[^|] | "
+                  "Time In: %d:%d | Time Out: %d:%d | "
+                  "Late: %d:%d | Overtime: %d:%d | Undertime: %d:%d | "
+                  "Total Time: %d:%d | "
+                  "Late Count: %d | Absent Count: %d | Status: %9s\n",
 
                   &log[logCount].month,
                   &log[logCount].day,
@@ -326,18 +369,26 @@ void loadLogs()
                   log[logCount].empID,
                   log[logCount].name,
 
-                  &log[logCount].timeIn,
-                  &log[logCount].timeOut,
+                  &inH, &inM,
+                  &outH, &outM,
 
-                  &log[logCount].late,
-                  &log[logCount].overtime,
-                  &log[logCount].undertime,
+                  &lateH, &lateM,
+                  &otH, &otM,
+                  &utH, &utM,
+
+                  &totalH, &totalM,
 
                   &log[logCount].lateCount,
                   &log[logCount].absences,
-
-                  log[logCount].status) == 13)
+                  log[logCount].status) == 19)
     {
+        log[logCount].timeIn = toMinutes(inH, inM);
+        log[logCount].timeOut = toMinutes(outH, outM);
+
+        log[logCount].late = toMinutes(lateH, lateM);
+        log[logCount].overtime = toMinutes(otH, otM);
+        log[logCount].undertime = toMinutes(utH, utM);
+
         logCount++;
 
         if (logCount >= logCapacity)
@@ -395,45 +446,48 @@ void updateEmployee()
         return;
     }
 
+    int day, month, year;
+    getDateChoice(&day, &month, &year);
+
     if (logCount >= logCapacity)
         resizeLogs();
 
-    int day, month, year;
+    int logIndex = findLogByDate(id, day, month, year);
 
-    getDateChoice(&day, &month, &year);
+    if (logIndex == -1)
+    {
+        logIndex = logCount;
+        logCount++;
+    }
 
     int isAbsent;
 
     printf("Is the employee absent today? (1 = Yes, 0 = No): ");
     scanf("%d", &isAbsent);
 
-    // ABSENT
     if (isAbsent == 1)
     {
         emp[index].absences = 1;
         emp[index].lateCount = 0;
 
-        strcpy(log[logCount].empID, emp[index].empID);
-        strcpy(log[logCount].name, emp[index].name);
+        strcpy(log[logIndex].empID, emp[index].empID);
+        strcpy(log[logIndex].name, emp[index].name);
 
-        log[logCount].day = day;
-        log[logCount].month = month;
-        log[logCount].year = year;
+        log[logIndex].day = day;
+        log[logIndex].month = month;
+        log[logIndex].year = year;
 
-        log[logCount].timeIn = ABSENT_TIME;
-        log[logCount].timeOut = ABSENT_TIME;
+        log[logIndex].timeIn = ABSENT_TIME;
+        log[logIndex].timeOut = ABSENT_TIME;
 
-        log[logCount].late = 0;
-        log[logCount].overtime = 0;
-        log[logCount].undertime = 0;
+        log[logIndex].late = 0;
+        log[logIndex].overtime = 0;
+        log[logIndex].undertime = 0;
 
-        log[logCount].lateCount = emp[index].lateCount;
-        log[logCount].absences = emp[index].absences;
+        log[logIndex].lateCount = 0;
+        log[logIndex].absences = 1;
 
-        strcpy(log[logCount].status,
-               getStatus(emp[index].absences));
-
-        logCount++;
+        strcpy(log[logIndex].status, getStatus(emp[index].absences));
 
         saveEmployees();
         saveLogs();
@@ -442,95 +496,61 @@ void updateEmployee()
         return;
     }
 
-    int hIn, mIn;
-    int hOut, mOut;
+    int hIn, mIn, hOut, mOut;
 
-    // TIME IN
     while (1)
     {
         printf("Enter Time In (HH MM): ");
         scanf("%d %d", &hIn, &mIn);
-
         if (isValidTime(hIn, mIn))
             break;
-
         printf("Invalid time!\n");
     }
 
-    // TIME OUT
     while (1)
     {
         printf("Enter Time Out (HH MM): ");
         scanf("%d %d", &hOut, &mOut);
-
-        if (!isValidTime(hOut, mOut))
-        {
-            printf("Invalid time!\n");
-            continue;
-        }
-
-        if (toMinutes(hOut, mOut) <=
-            toMinutes(hIn, mIn))
-        {
-            printf("Time Out must be after Time In!\n");
-            continue;
-        }
-
-        break;
+        if (isValidTime(hOut, mOut) &&
+            toMinutes(hOut, mOut) > toMinutes(hIn, mIn))
+            break;
+        printf("Invalid time!\n");
     }
 
-    int late =
-        (toMinutes(hIn, mIn) > START_TIME)
-            ? toMinutes(hIn, mIn) - START_TIME
-            : 0;
+    int late = (toMinutes(hIn, mIn) > START_TIME)
+                   ? toMinutes(hIn, mIn) - START_TIME
+                   : 0;
 
-    int overtime =
-        (toMinutes(hOut, mOut) > END_TIME)
-            ? toMinutes(hOut, mOut) - END_TIME
-            : 0;
+    int overtime = (toMinutes(hOut, mOut) > END_TIME)
+                       ? toMinutes(hOut, mOut) - END_TIME
+                       : 0;
 
-    int undertime =
-        (toMinutes(hOut, mOut) < END_TIME)
-            ? END_TIME - toMinutes(hOut, mOut)
-            : 0;
+    int undertime = (toMinutes(hOut, mOut) < END_TIME)
+                        ? END_TIME - toMinutes(hOut, mOut)
+                        : 0;
 
-    if (late > 0)
-    {
-        emp[index].lateCount = 1;
-        emp[index].absences = 0;
-    }
-    else
-    {
-        emp[index].lateCount = 0;
-    }
+    emp[index].lateCount = (late > 0) ? 1 : 0;
+    emp[index].absences = 0;
 
-    strcpy(log[logCount].empID, emp[index].empID);
-    strcpy(log[logCount].name, emp[index].name);
+    strcpy(log[logIndex].empID, emp[index].empID);
+    strcpy(log[logIndex].name, emp[index].name);
 
-    log[logCount].day = day;
-    log[logCount].month = month;
-    log[logCount].year = year;
+    log[logIndex].day = day;
+    log[logIndex].month = month;
+    log[logIndex].year = year;
 
-    log[logCount].timeIn =
-        toMinutes(hIn, mIn);
+    log[logIndex].timeIn = toMinutes(hIn, mIn);
+    log[logIndex].timeOut = toMinutes(hOut, mOut);
 
-    log[logCount].timeOut =
-        toMinutes(hOut, mOut);
+    log[logIndex].late = late;
+    log[logIndex].overtime = overtime;
+    log[logIndex].undertime = undertime;
 
-    log[logCount].late = late;
-    log[logCount].overtime = overtime;
-    log[logCount].undertime = undertime;
+    log[logIndex].lateCount = emp[index].lateCount;
+    log[logIndex].absences = emp[index].absences;
 
-    log[logCount].lateCount =
-        emp[index].lateCount;
-
-    log[logCount].absences =
-        emp[index].absences;
-
-    strcpy(log[logCount].status,
+    strcpy(log[logIndex].status,
            getStatus(emp[index].absences));
-
-    logCount++;
 
     saveEmployees();
     saveLogs();
@@ -547,71 +567,55 @@ void viewHistory()
         return;
     }
 
+    int day, month, year;
+    getDateChoice(&day, &month, &year);
+
+    int found = 0;
+
     printf("\n--- ATTENDANCE HISTORY ---\n");
 
     printf("%-12s %-10s %-20s %-10s %-10s %-8s %-8s %-8s %-8s\n",
-           "Date",
-           "ID",
-           "Name",
-           "TimeIn",
-           "TimeOut",
-           "Late",
-           "OT",
-           "UT",
-           "Total");
+           "Date", "ID", "Name", "TimeIn", "TimeOut", "Late", "OT", "UT", "Total");
 
-    for (int i = 0; i < logCount; i++)
+    for (int i = 0; i < count; i++)
     {
+        int idx = findLogByDate(emp[i].empID, day, month, year);
+
+        if (idx == -1)
+            continue;
+
+        found = 1;
+
         printf("%02d/%02d/%04d   ",
-               log[i].month,
-               log[i].day,
-               log[i].year);
+               log[idx].month,
+               log[idx].day,
+               log[idx].year);
 
         printf("%-10s %-20s ",
-               log[i].empID,
-               log[i].name);
+               log[idx].empID,
+               log[idx].name);
 
-        if (log[i].timeIn == ABSENT_TIME)
+        if (log[idx].timeIn == ABSENT_TIME)
         {
             printf("%-10s %-10s %-8s %-8s %-8s %-8s\n",
-                   "ABSENT",
-                   "ABSENT",
-                   "00:00",
-                   "00:00",
-                   "00:00",
-                   "00:00");
+                   "ABSENT", "ABSENT", "00:00", "00:00", "00:00", "00:00");
         }
         else
         {
-            int totalWorked =
-                log[i].timeOut -
-                log[i].timeIn;
+            int total = log[idx].timeOut - log[idx].timeIn;
 
-            printf("%02d:%02d     ",
-                   log[i].timeIn / 60,
-                   log[i].timeIn % 60);
-
-            printf(" %02d:%02d     ",
-                   log[i].timeOut / 60,
-                   log[i].timeOut % 60);
-
-            printf(" %02d:%02d   ",
-                   log[i].late / 60,
-                   log[i].late % 60);
-
-            printf(" %02d:%02d   ",
-                   log[i].overtime / 60,
-                   log[i].overtime % 60);
-
-            printf(" %02d:%02d   ",
-                   log[i].undertime / 60,
-                   log[i].undertime % 60);
-
-            printf(" %02d:%02d\n",
-                   totalWorked / 60,
-                   totalWorked % 60);
+            printf("%02d:%02d     ", log[idx].timeIn / 60, log[idx].timeIn % 60);
+            printf(" %02d:%02d     ", log[idx].timeOut / 60, log[idx].timeOut % 60);
+            printf(" %02d:%02d   ", log[idx].late / 60, log[idx].late % 60);
+            printf(" %02d:%02d   ", log[idx].overtime / 60, log[idx].overtime % 60);
+            printf(" %02d:%02d   ", log[idx].undertime / 60, log[idx].undertime % 60);
+            printf(" %02d:%02d\n", total / 60, total % 60);
         }
     }
+
+    if (!found)
+        printf("No records found for %02d/%02d/%04d.\n",
+               month, day, year);
 }
 
 // VIEW EMPLOYEES
@@ -626,33 +630,37 @@ void viewEmployees()
     printf("\n--- LATE/ABSENT RECORD ---\n");
 
     printf("%-10s %-20s %-10s %-10s %-10s\n",
-           "ID",
-           "Name",
-           "LateCnt",
-           "Absences",
-           "Status");
+           "ID", "Name", "LateCnt", "Absences", "Status");
 
     for (int i = 0; i < count; i++)
     {
-        int totalLate = 0;
-        int totalAbsent = 0;
+        int late = 0, absent = 0;
 
         for (int j = 0; j < logCount; j++)
         {
-            if (strcmp(emp[i].empID,
-                       log[j].empID) == 0)
-            {
-                totalLate += log[j].lateCount;
-                totalAbsent += log[j].absences;
-            }
+            if (strcmp(emp[i].empID, log[j].empID) != 0)
+                continue;
+
+            int idx = findLogByDate(emp[i].empID,
+                                    log[j].day,
+                                    log[j].month,
+                                    log[j].year);
+
+            if (idx != j)
+                continue;
+
+            if (log[idx].timeIn == ABSENT_TIME)
+                absent++;
+            else if (log[idx].late > 0)
+                late++;
         }
 
         printf("%-10s %-20s %-10d %-10d %-10s\n",
                emp[i].empID,
                emp[i].name,
-               totalLate,
-               totalAbsent,
-               getStatus(totalAbsent));
+               late,
+               absent,
+               getStatus(absent));
     }
 }
 
@@ -661,12 +669,8 @@ int main()
 {
     int choice;
 
-    // MEMORY ALLOCATION
-    emp = malloc(empCapacity *
-                 sizeof(Employee));
-
-    log = malloc(logCapacity *
-                 sizeof(Attendance));
+    emp = malloc(empCapacity * sizeof(Employee));
+    log = malloc(logCapacity * sizeof(Attendance));
 
     if (emp == NULL || log == NULL)
     {
@@ -674,7 +678,6 @@ int main()
         return 1;
     }
 
-    // LOAD FILES
     loadEmployees();
     loadLogs();
 
@@ -698,25 +701,20 @@ int main()
         case 1:
             addNewEmployee();
             break;
-
         case 2:
             updateEmployee();
             break;
-
         case 3:
             viewHistory();
             break;
-
         case 4:
             viewEmployees();
             break;
-
         case 5:
             printf("\n===============================\n");
             printf("\n        End Of Program         \n");
             printf("\n===============================\n");
             break;
-
         default:
             printf("Invalid choice!\n");
         }
