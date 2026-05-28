@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <ctype.h>
 
 #define ABSENT_TIME -1
 
@@ -43,7 +44,7 @@ typedef struct
 
 // DYNAMIC ARRAYS
 Employee *emp = NULL;
-Attendance *log = NULL;
+Attendance *attendance = NULL;
 
 // COUNTERS
 int count = 0;
@@ -132,7 +133,13 @@ void getDateChoice(int *day,
         printf("[1] Use Current Date\n");
         printf("[2] Enter Date Manually\n");
         printf("Choice: ");
-        scanf("%d", &choice);
+        
+        if (scanf("%d", &choice) != 1)
+        {
+            printf("Invalid input!\n");
+            while (getchar() != '\n');
+            continue;
+        }
 
         if (choice == 1)
         {
@@ -147,8 +154,13 @@ void getDateChoice(int *day,
             while (1)
             {
                 printf("Enter Date (MM DD YYYY): ");
-                scanf("%d %d %d",
-                      month, day, year);
+                
+                if (scanf("%d %d %d", month, day, year) != 3)
+                {
+                    printf("Invalid date input!\n");
+                    while (getchar() != '\n');
+                    continue;
+                }
 
                 if (isValidDate(*day, *month, *year))
                     break;
@@ -175,12 +187,37 @@ int findEmployee(char id[])
     return -1;
 }
 
-// STATUS
-char *getStatus(int absences)
+// VALIDATION FUNCTIONS
+int isValidID(char id[])
 {
-    if (absences >= 8)
+    if (strlen(id) == 0 || strlen(id) > 9)
+        return 0;
+
+    for (int i = 0; id[i]; i++)
+        if (!isalnum(id[i]))
+            return 0;
+
+    return 1;
+}
+
+int isValidName(char name[])
+{
+    if (strlen(name) == 0)
+        return 0;
+
+    for (int i = 0; name[i]; i++)
+        if (!isalpha(name[i]) && name[i] != ' ')
+            return 0;
+
+    return 1;
+}
+
+// STATUS
+char *getStatus(int absences, int lateCount)
+{
+    if (absences >= 8 || lateCount >= 8)
         return "CRITICAL";
-    else if (absences >= 5)
+    else if (absences >= 5 || lateCount >= 5)
         return "WARNING";
     else
         return "GOOD";
@@ -191,10 +228,10 @@ int findLogByDate(const char *empID, int day, int month, int year)
 {
     for (int i = 0; i < logCount; i++)
     {
-        if (strcmp(log[i].empID, empID) == 0 &&
-            log[i].day == day &&
-            log[i].month == month &&
-            log[i].year == year)
+        if (strcmp(attendance[i].empID, empID) == 0 &&
+            attendance[i].day == day &&
+            attendance[i].month == month &&
+            attendance[i].year == year)
         {
             return i;
         }
@@ -207,14 +244,16 @@ void resizeEmployee()
 {
     empCapacity *= 2;
 
-    emp = realloc(emp,
-                  empCapacity * sizeof(Employee));
+    Employee *temp = realloc(emp,
+                             empCapacity * sizeof(Employee));
 
-    if (emp == NULL)
+    if (!temp)
     {
         printf("Memory allocation failed!\n");
         exit(1);
     }
+
+    emp = temp;
 }
 
 // RESIZE LOG ARRAY
@@ -222,14 +261,16 @@ void resizeLogs()
 {
     logCapacity *= 2;
 
-    log = realloc(log,
-                  logCapacity * sizeof(Attendance));
+    Attendance *temp = realloc(attendance,
+                               logCapacity * sizeof(Attendance));
 
-    if (log == NULL)
+    if (!temp)
     {
         printf("Memory allocation failed!\n");
         exit(1);
     }
+
+    attendance = temp;
 }
 
 // SAVE EMPLOYEES
@@ -264,17 +305,30 @@ void loadEmployees()
     if (fp == NULL)
         return;
 
-    while (fscanf(fp,
-                  "Employee ID: %9[^|] | Employee Name: %49[^|] | Late Count: %d | Absent Count: %d\n",
-                  emp[count].empID,
-                  emp[count].name,
-                  &emp[count].lateCount,
-                  &emp[count].absences) == 4)
+    while (1)
     {
-        count++;
-
         if (count >= empCapacity)
             resizeEmployee();
+
+        int result = fscanf(fp,
+                      "Employee ID: %9[^|] | Employee Name: %49[^|] | Late Count: %d | Absent Count: %d\n",
+                      emp[count].empID,
+                      emp[count].name,
+                      &emp[count].lateCount,
+                      &emp[count].absences);
+
+        if (result != 4)
+            break;
+
+        if (!isValidID(emp[count].empID) || !isValidName(emp[count].name))
+        {
+            continue;
+        }
+
+        if (emp[count].lateCount < 0 || emp[count].absences < 0)
+            continue;
+
+        count++;
     }
 
     fclose(fp);
@@ -293,22 +347,22 @@ void saveLogs()
 
     for (int i = 0; i < logCount; i++)
     {
-        int inH = log[i].timeIn / 60;
-        int inM = log[i].timeIn % 60;
+        int inH = attendance[i].timeIn / 60;
+        int inM = attendance[i].timeIn % 60;
 
-        int outH = log[i].timeOut / 60;
-        int outM = log[i].timeOut % 60;
+        int outH = attendance[i].timeOut / 60;
+        int outM = attendance[i].timeOut % 60;
 
-        int lateH = log[i].late / 60;
-        int lateM = log[i].late % 60;
+        int lateH = attendance[i].late / 60;
+        int lateM = attendance[i].late % 60;
 
-        int otH = log[i].overtime / 60;
-        int otM = log[i].overtime % 60;
+        int otH = attendance[i].overtime / 60;
+        int otM = attendance[i].overtime % 60;
 
-        int utH = log[i].undertime / 60;
-        int utM = log[i].undertime % 60;
+        int utH = attendance[i].undertime / 60;
+        int utM = attendance[i].undertime % 60;
 
-        int totalMinutes = log[i].timeOut - log[i].timeIn;
+        int totalMinutes = attendance[i].timeOut - attendance[i].timeIn;
         int totalH = totalMinutes / 60;
         int totalM = totalMinutes % 60;
 
@@ -319,12 +373,12 @@ void saveLogs()
                 "Total Time: %02d:%02d | "
                 "Late Count: %d | Absent Count: %d | Status: %s\n",
 
-                log[i].month,
-                log[i].day,
-                log[i].year,
+                attendance[i].month,
+                attendance[i].day,
+                attendance[i].year,
 
-                log[i].empID,
-                log[i].name,
+                attendance[i].empID,
+                attendance[i].name,
 
                 inH, inM,
                 outH, outM,
@@ -335,9 +389,9 @@ void saveLogs()
 
                 totalH, totalM,
 
-                log[i].lateCount,
-                log[i].absences,
-                log[i].status);
+                attendance[i].lateCount,
+                attendance[i].absences,
+                attendance[i].status);
     }
 
     fclose(fp);
@@ -355,19 +409,24 @@ void loadLogs()
     int lateH, lateM, otH, otM, utH, utM;
     int totalH, totalM;
 
-    while (fscanf(fp,
+    while (1)
+    {
+        if (logCount >= logCapacity)
+            resizeLogs();
+
+        int result = fscanf(fp,
                   "%d/%d/%d | Employee ID: %9[^|] | Employee Name: %49[^|] | "
                   "Time In: %d:%d | Time Out: %d:%d | "
                   "Late: %d:%d | Overtime: %d:%d | Undertime: %d:%d | "
                   "Total Time: %d:%d | "
                   "Late Count: %d | Absent Count: %d | Status: %9s\n",
 
-                  &log[logCount].month,
-                  &log[logCount].day,
-                  &log[logCount].year,
+                  &attendance[logCount].month,
+                  &attendance[logCount].day,
+                  &attendance[logCount].year,
 
-                  log[logCount].empID,
-                  log[logCount].name,
+                  attendance[logCount].empID,
+                  attendance[logCount].name,
 
                   &inH, &inM,
                   &outH, &outM,
@@ -378,21 +437,39 @@ void loadLogs()
 
                   &totalH, &totalM,
 
-                  &log[logCount].lateCount,
-                  &log[logCount].absences,
-                  log[logCount].status) == 19)
-    {
-        log[logCount].timeIn = toMinutes(inH, inM);
-        log[logCount].timeOut = toMinutes(outH, outM);
+                  &attendance[logCount].lateCount,
+                  &attendance[logCount].absences,
+                  attendance[logCount].status);
 
-        log[logCount].late = toMinutes(lateH, lateM);
-        log[logCount].overtime = toMinutes(otH, otM);
-        log[logCount].undertime = toMinutes(utH, utM);
+        if (result != 19)
+            break;
+
+        if (!isValidDate(attendance[logCount].day, attendance[logCount].month, attendance[logCount].year))
+            continue;
+
+        if (!isValidID(attendance[logCount].empID) || !isValidName(attendance[logCount].name))
+            continue;
+
+        if (inH < 0 || inH > 23 || inM < 0 || inM > 59)
+            continue;
+
+        if (outH < 0 || outH > 23 || outM < 0 || outM > 59)
+            continue;
+
+        attendance[logCount].timeIn = toMinutes(inH, inM);
+        attendance[logCount].timeOut = toMinutes(outH, outM);
+
+        if (attendance[logCount].timeIn != ABSENT_TIME && attendance[logCount].timeOut <= attendance[logCount].timeIn)
+            continue;
+
+        attendance[logCount].late = toMinutes(lateH, lateM);
+        attendance[logCount].overtime = toMinutes(otH, otM);
+        attendance[logCount].undertime = toMinutes(utH, utM);
+
+        if (attendance[logCount].lateCount < 0 || attendance[logCount].absences < 0)
+            continue;
 
         logCount++;
-
-        if (logCount >= logCapacity)
-            resizeLogs();
     }
 
     fclose(fp);
@@ -404,7 +481,19 @@ void addNewEmployee()
     char id[10];
 
     printf("\nEnter Employee ID: ");
-    scanf("%s", id);
+    
+    if (scanf("%9s", id) != 1)
+    {
+        printf("Invalid input!\n");
+        while (getchar() != '\n');
+        return;
+    }
+
+    if (!isValidID(id))
+    {
+        printf("Invalid ID! Must be alphanumeric, max 9 characters.\n");
+        return;
+    }
 
     if (findEmployee(id) != -1)
     {
@@ -416,7 +505,19 @@ void addNewEmployee()
         resizeEmployee();
 
     printf("Enter Employee Name: ");
-    scanf(" %[^\n]", emp[count].name);
+    
+    if (scanf(" %49[^\n]", emp[count].name) != 1)
+    {
+        printf("Invalid input!\n");
+        while (getchar() != '\n');
+        return;
+    }
+
+    if (!isValidName(emp[count].name))
+    {
+        printf("Invalid name! Only letters and spaces allowed.\n");
+        return;
+    }
 
     strcpy(emp[count].empID, id);
 
@@ -436,7 +537,13 @@ void updateEmployee()
     char id[10];
 
     printf("\nEnter Employee ID: ");
-    scanf("%s", id);
+    
+    if (scanf("%9s", id) != 1)
+    {
+        printf("Invalid input!\n");
+        while (getchar() != '\n');
+        return;
+    }
 
     int index = findEmployee(id);
 
@@ -449,13 +556,17 @@ void updateEmployee()
     int day, month, year;
     getDateChoice(&day, &month, &year);
 
-    if (logCount >= logCapacity)
-        resizeLogs();
-
     int logIndex = findLogByDate(id, day, month, year);
 
-    if (logIndex == -1)
+    if (logIndex != -1)
     {
+        printf("Record already exists for this date. Overwriting...\n");
+        logIndex = findLogByDate(id, day, month, year);
+    }
+    else
+    {
+        if (logCount >= logCapacity)
+            resizeLogs();
         logIndex = logCount;
         logCount++;
     }
@@ -463,31 +574,42 @@ void updateEmployee()
     int isAbsent;
 
     printf("Is the employee absent today? (1 = Yes, 0 = No): ");
-    scanf("%d", &isAbsent);
+    
+    if (scanf("%d", &isAbsent) != 1)
+    {
+        printf("Invalid input!\n");
+        while (getchar() != '\n');
+        return;
+    }
+
+    if (isAbsent != 0 && isAbsent != 1)
+    {
+        printf("Invalid choice! Must be 0 or 1.\n");
+        return;
+    }
 
     if (isAbsent == 1)
     {
-        emp[index].absences = 1;
-        emp[index].lateCount = 0;
+        emp[index].absences++;
 
-        strcpy(log[logIndex].empID, emp[index].empID);
-        strcpy(log[logIndex].name, emp[index].name);
+        strcpy(attendance[logIndex].empID, emp[index].empID);
+        strcpy(attendance[logIndex].name, emp[index].name);
 
-        log[logIndex].day = day;
-        log[logIndex].month = month;
-        log[logIndex].year = year;
+        attendance[logIndex].day = day;
+        attendance[logIndex].month = month;
+        attendance[logIndex].year = year;
 
-        log[logIndex].timeIn = ABSENT_TIME;
-        log[logIndex].timeOut = ABSENT_TIME;
+        attendance[logIndex].timeIn = ABSENT_TIME;
+        attendance[logIndex].timeOut = ABSENT_TIME;
 
-        log[logIndex].late = 0;
-        log[logIndex].overtime = 0;
-        log[logIndex].undertime = 0;
+        attendance[logIndex].late = 0;
+        attendance[logIndex].overtime = 0;
+        attendance[logIndex].undertime = 0;
 
-        log[logIndex].lateCount = 0;
-        log[logIndex].absences = 1;
+        attendance[logIndex].lateCount = emp[index].lateCount;
+        attendance[logIndex].absences = emp[index].absences;
 
-        strcpy(log[logIndex].status, getStatus(emp[index].absences));
+        strcpy(attendance[logIndex].status, getStatus(emp[index].absences, emp[index].lateCount));
 
         saveEmployees();
         saveLogs();
@@ -501,20 +623,47 @@ void updateEmployee()
     while (1)
     {
         printf("Enter Time In (HH MM): ");
-        scanf("%d %d", &hIn, &mIn);
-        if (isValidTime(hIn, mIn))
-            break;
-        printf("Invalid time!\n");
+        
+        if (scanf("%d %d", &hIn, &mIn) != 2)
+        {
+            printf("Invalid time input!\n");
+            while (getchar() != '\n');
+            continue;
+        }
+
+        if (!isValidTime(hIn, mIn))
+        {
+            printf("Invalid time! Hours: 0-23, Minutes: 0-59\n");
+            continue;
+        }
+
+        break;
     }
 
     while (1)
     {
         printf("Enter Time Out (HH MM): ");
-        scanf("%d %d", &hOut, &mOut);
-        if (isValidTime(hOut, mOut) &&
-            toMinutes(hOut, mOut) > toMinutes(hIn, mIn))
-            break;
-        printf("Invalid time!\n");
+        
+        if (scanf("%d %d", &hOut, &mOut) != 2)
+        {
+            printf("Invalid time input!\n");
+            while (getchar() != '\n');
+            continue;
+        }
+
+        if (!isValidTime(hOut, mOut))
+        {
+            printf("Invalid time! Hours: 0-23, Minutes: 0-59\n");
+            continue;
+        }
+
+        if (toMinutes(hOut, mOut) <= toMinutes(hIn, mIn))
+        {
+            printf("Invalid time range! Time out must be after time in.\n");
+            continue;
+        }
+
+        break;
     }
 
     int late = (toMinutes(hIn, mIn) > START_TIME)
@@ -529,28 +678,28 @@ void updateEmployee()
                         ? END_TIME - toMinutes(hOut, mOut)
                         : 0;
 
-    emp[index].lateCount = (late > 0) ? 1 : 0;
-    emp[index].absences = 0;
+    if (late > 0)
+        emp[index].lateCount++;
 
-    strcpy(log[logIndex].empID, emp[index].empID);
-    strcpy(log[logIndex].name, emp[index].name);
+    strcpy(attendance[logIndex].empID, emp[index].empID);
+    strcpy(attendance[logIndex].name, emp[index].name);
 
-    log[logIndex].day = day;
-    log[logIndex].month = month;
-    log[logIndex].year = year;
+    attendance[logIndex].day = day;
+    attendance[logIndex].month = month;
+    attendance[logIndex].year = year;
 
-    log[logIndex].timeIn = toMinutes(hIn, mIn);
-    log[logIndex].timeOut = toMinutes(hOut, mOut);
+    attendance[logIndex].timeIn = toMinutes(hIn, mIn);
+    attendance[logIndex].timeOut = toMinutes(hOut, mOut);
 
-    log[logIndex].late = late;
-    log[logIndex].overtime = overtime;
-    log[logIndex].undertime = undertime;
+    attendance[logIndex].late = late;
+    attendance[logIndex].overtime = overtime;
+    attendance[logIndex].undertime = undertime;
 
-    log[logIndex].lateCount = emp[index].lateCount;
-    log[logIndex].absences = emp[index].absences;
+    attendance[logIndex].lateCount = emp[index].lateCount;
+    attendance[logIndex].absences = emp[index].absences;
 
-    strcpy(log[logIndex].status,
-           getStatus(emp[index].absences));
+    strcpy(attendance[logIndex].status,
+           getStatus(emp[index].absences, emp[index].lateCount));
 
     saveEmployees();
     saveLogs();
@@ -563,7 +712,7 @@ void viewHistory()
 {
     if (logCount == 0)
     {
-        printf("\nNo history records.\n");
+        printf("\nNo records yet.\n");
         return;
     }
 
@@ -584,31 +733,34 @@ void viewHistory()
         if (idx == -1)
             continue;
 
+        if (idx < 0 || idx >= logCount)
+            continue;
+
         found = 1;
 
         printf("%02d/%02d/%04d   ",
-               log[idx].month,
-               log[idx].day,
-               log[idx].year);
+               attendance[idx].month,
+               attendance[idx].day,
+               attendance[idx].year);
 
         printf("%-10s %-20s ",
-               log[idx].empID,
-               log[idx].name);
+               attendance[idx].empID,
+               attendance[idx].name);
 
-        if (log[idx].timeIn == ABSENT_TIME)
+        if (attendance[idx].timeIn == ABSENT_TIME)
         {
             printf("%-10s %-10s %-8s %-8s %-8s %-8s\n",
                    "ABSENT", "ABSENT", "00:00", "00:00", "00:00", "00:00");
         }
         else
         {
-            int total = log[idx].timeOut - log[idx].timeIn;
+            int total = attendance[idx].timeOut - attendance[idx].timeIn;
 
-            printf("%02d:%02d     ", log[idx].timeIn / 60, log[idx].timeIn % 60);
-            printf(" %02d:%02d     ", log[idx].timeOut / 60, log[idx].timeOut % 60);
-            printf(" %02d:%02d   ", log[idx].late / 60, log[idx].late % 60);
-            printf(" %02d:%02d   ", log[idx].overtime / 60, log[idx].overtime % 60);
-            printf(" %02d:%02d   ", log[idx].undertime / 60, log[idx].undertime % 60);
+            printf("%02d:%02d     ", attendance[idx].timeIn / 60, attendance[idx].timeIn % 60);
+            printf(" %02d:%02d     ", attendance[idx].timeOut / 60, attendance[idx].timeOut % 60);
+            printf(" %02d:%02d   ", attendance[idx].late / 60, attendance[idx].late % 60);
+            printf(" %02d:%02d   ", attendance[idx].overtime / 60, attendance[idx].overtime % 60);
+            printf(" %02d:%02d   ", attendance[idx].undertime / 60, attendance[idx].undertime % 60);
             printf(" %02d:%02d\n", total / 60, total % 60);
         }
     }
@@ -623,7 +775,7 @@ void viewEmployees()
 {
     if (logCount == 0)
     {
-        printf("\nNo records.\n");
+        printf("\nNo records yet.\n");
         return;
     }
 
@@ -638,20 +790,20 @@ void viewEmployees()
 
         for (int j = 0; j < logCount; j++)
         {
-            if (strcmp(emp[i].empID, log[j].empID) != 0)
+            if (strcmp(emp[i].empID, attendance[j].empID) != 0)
                 continue;
 
             int idx = findLogByDate(emp[i].empID,
-                                    log[j].day,
-                                    log[j].month,
-                                    log[j].year);
+                                    attendance[j].day,
+                                    attendance[j].month,
+                                    attendance[j].year);
 
-            if (idx != j)
+            if (idx != j || idx == -1 || idx >= logCount)
                 continue;
 
-            if (log[idx].timeIn == ABSENT_TIME)
+            if (attendance[idx].timeIn == ABSENT_TIME)
                 absent++;
-            else if (log[idx].late > 0)
+            else if (attendance[idx].late > 0)
                 late++;
         }
 
@@ -660,7 +812,7 @@ void viewEmployees()
                emp[i].name,
                late,
                absent,
-               getStatus(absent));
+               getStatus(absent, late));
     }
 }
 
@@ -670,9 +822,9 @@ int main()
     int choice;
 
     emp = malloc(empCapacity * sizeof(Employee));
-    log = malloc(logCapacity * sizeof(Attendance));
+    attendance = malloc(logCapacity * sizeof(Attendance));
 
-    if (emp == NULL || log == NULL)
+    if (emp == NULL || attendance == NULL)
     {
         printf("Memory allocation failed!\n");
         return 1;
@@ -694,7 +846,13 @@ int main()
         printf("[5] Exit\n\n");
 
         printf("Choice: ");
-        scanf("%d", &choice);
+        
+        if (scanf("%d", &choice) != 1)
+        {
+            printf("Invalid input!\n");
+            while (getchar() != '\n');
+            continue;
+        }
 
         switch (choice)
         {
@@ -722,7 +880,7 @@ int main()
     } while (choice != 5);
 
     free(emp);
-    free(log);
+    free(attendance);
 
     return 0;
 }
